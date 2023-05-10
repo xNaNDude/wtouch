@@ -1,8 +1,9 @@
+
+
 ```
-note: -t<x> <time> does'nt imply -<x>
 
 usage:
-wtouch.exe [-(s|r|a|c|m)] [-f (<file>|-)] [-t[a|c|m] <time>] [--] [<file> ...]
+wtouch.exe [-(s|r|a|c|m|e)] [-f (<file>|-)] [-t[a|c|m] <time>] [--] [<file> ...]
 
 change modification and access time of file(s) to current system time.
 
@@ -23,8 +24,12 @@ change modification and access time of file(s) to current system time.
 -f <file>	 read file(s) arguments from <file> or stdin when '-',
   		 one file per line, file(s) argument(s) on command line
   		 are still treated before <file>/stdin input.
+-e		 treat -f input as voidtools everything output.
 --		 the first non option argument always stop option(s) reading,
   		 this option force this stop, allowing file(s) named like
   		 options.
+
 ```
+
+note: everything support only ignore header and times/attributes fields.
 
