@@ -4,6 +4,7 @@
 #include <stdbool.h>
 
 #include <windows.h>
+#include <shlwapi.h>
 
 typedef char                  char_t;
 typedef char const           cchar_t;
@@ -40,9 +41,9 @@ stime_t nilstime(void) {
 static inline
 void stimeprn(cstime_p const t) {
   if(t) {
-    fprintf(stderr, "year: %d, month: %d, dow: %d, dom: %d\n",
+    fprintf(stderr, "year: %u, month: %u, dow: %u, dom: %u\n",
             t->wYear, t->wMonth, t->wDayOfWeek, t->wDay );
-    fprintf(stderr, "hr: %d, mn: %d, sc: %d, ms: %d\n",
+    fprintf(stderr, "hr: %u, mn: %u, sc: %u, ms: %u\n",
             t->wHour, t->wMinute, t->wSecond, t->wMilliseconds );
   } else fprintf(stderr, "nil stime_p\n");
 }
@@ -58,7 +59,7 @@ ftime_t nilftime(void) {
 
 static inline
 void ftimeprn(cftime_p const t) {
-  if(t) fprintf(stderr, "high: %lu, low: %lu\n",
+  if(t) fprintf(stderr, "high: %u, low: %u\n",
                 t->dwHighDateTime, t->dwHighDateTime);
   else fprintf(stderr, "nil ftime_p\n");
 }
@@ -132,6 +133,11 @@ err_t filehandle(void* fpathname, fhandle_p fhdl, bool write, bool wide) {
 }
 
 static inline
+err_t closehandle(fhandle_t h) {
+  return CloseHandle(h) ? 0 : GetLastError();
+}
+
+static inline
 err_t time_s2f(stime_p s, ftime_p f) {
   return SystemTimeToFileTime(s, f) ? 0 : GetLastError();
 }
@@ -139,6 +145,14 @@ err_t time_s2f(stime_p s, ftime_p f) {
 static inline
 err_t time_f2s(ftime_p f, stime_p s) {
   return FileTimeToSystemTime(f, s) ? 0 : GetLastError();
+}
+
+static inline
+err_t localtime_s2f(stime_p s, ftime_p f) {
+  ftime_t tmp;
+  if(!time_s2f(s, f) && LocalFileTimeToFileTime(f, &tmp))
+    return (*f = tmp), 0;
+  return GetLastError();
 }
 
 static inline
@@ -236,6 +250,12 @@ bool ftcmp(ftime_t const t1, ftime_t const t2) {
          (t1.dwHighDateTime == t2.dwHighDateTime);
 }
 
+static inline
+uint64_t ft2val(ftime_t const t) {
+  uint64_t out = t.dwHighDateTime;
+  return (out << 32) + t.dwLowDateTime;
+}
+
 err_t touch(cstr_t f, ctx_p ctx) {
   uint_t err;
   attr_t att;
@@ -269,9 +289,15 @@ err_t touch(cstr_t f, ctx_p ctx) {
   }
   
   fhandle_t hfile;
+  static ftime_t const access_protect = { 0xFFFFFFFF, 0xFFFFFFFF };
+  
   if(!(err = filehandle(f, &hfile, 1, 0))) {
-    err = setftime(hfile, p[op2idx(CRT)], p[op2idx(ACS)], p[op2idx(MDF)]);
-    if(!CloseHandle(hfile) && !err) err = GetLastError();
+    if(!(err = setftime(hfile, p[op2idx(CRT)],
+                               p[op2idx(ACS)],
+                               p[op2idx(MDF)])))
+      err = setftime(hfile, 0, &access_protect, 0);
+    if(!err) err = closehandle(hfile);
+    else closehandle(hfile);
   }
   
   err_t rstro_err = rstro ? set_ro(f, &att) : 0;
@@ -326,7 +352,7 @@ ftime_p readtime(cstr_t v, ushrt_t dflt_year, ftime_p out) {
     return badpp();
   
   // validate
-  return time_s2f(&tmp, out) ? 0 : out;
+  return localtime_s2f(&tmp, out) ? 0 : out;
 }
 
 // popts return :
@@ -455,18 +481,52 @@ ccstr_t const error[] = {
   "unknown usage error : %u\n",
   "error %u on time\n",
   "error %u on file : \"%s\"\n",
-  "usage\n"
+  "usage:\n"
+  "%s [-(s|r|a|c|m)] [-f (<file>|-)] [-t[a|c|m] <time>] [--] [<file> ...]\n\n"
+  "change modification and access time of file(s) to current system time.\n\n"
+  "-s\t\t silent mode.\n"
+  "-r\t\t ignore files with readonly attribute\n"
+  "  \t\t (default is to remove then reset it if needed).\n"
+  "-a\t\t change access time (and others requested times only).\n"
+  "-c\t\t change creation time (and others requested times only).\n"
+  "-m\t\t change modification time (and others requested times only).\n"
+  "-t <time>\t where <time> is of the form : MMDDhhmm[[CC]YY][.ss]\n"
+  "  \t\t set <time> as file(s) times instead of system time.\n"
+  "-ta <time>\t where <time> is of the form : MMDDhhmm[[CC]YY][.ss]\n"
+  "  \t\t use <time> as access time (override system and -t <time>).\n"
+  "-tc <time>\t where <time> is of the form : MMDDhhmm[[CC]YY][.ss]\n"
+  "  \t\t use <time> as creation time (override system and -t <time>).\n"
+  "-tm <time>\t where <time> is of the form : MMDDhhmm[[CC]YY][.ss]\n"
+  "  \t\t use <time> as modification time (override system and -t <time>).\n"
+  "-f <file>\t read file(s) arguments from <file> or stdin when '-',\n"
+  "  \t\t one file per line, file(s) argument(s) on command line\n"
+  "  \t\t are still treated before <file>/stdin input.\n"
+  "--\t\t the first non option argument always stop option(s) reading,\n"
+  "  \t\t this option force this stop, allowing file(s) named like\n"
+  "  \t\t options.\n"
 };
 
-void usage(int exit_code, bool verbose) {
+void usage(int exit_code, bool verbose, cstr_t name) {
+  cstr_t cmdname = "cmd";
+  char_t tmp[MAX_PATH];
+  
   if(verbose) {
+    if(name) {
+      strcpy(tmp, name);
+      PathStripPathA(tmp);
+      cmdname = tmp;
+    }
+    
     if(exit_code > 0) // not popt error
       fprintf(stderr, error[UNKNOW_USAGE], exit_code);
-    printf(error[USAGE_ERROR]);
+    printf(error[USAGE_ERROR], cmdname);
   }
   
   if(exit_code < 0) // popt error
     exit_code = -exit_code;
+  
+  fflush(stdout);
+  fflush(stderr);
   exit(exit_code);
 }
 
@@ -482,7 +542,7 @@ int main(int argc, char* argv[]) {
   
   // getopts & abort on usage error.
   int idx = popts(argc, argv, &ctx);
-  if(idx < -1) usage(idx, ctx.vrbs);
+  if(idx < -1) usage(idx, ctx.vrbs, argv[0]);
   
   // following errors are'nt opts errors.
   int outerr = - popt_maxerr;
@@ -515,7 +575,7 @@ int main(int argc, char* argv[]) {
   // select optionnal input file list
   switch((uintptr_t) ctx.input) {
     case 0:
-      if(idx == -1) usage(EXIT_SUCCESS, ctx.vrbs);
+      if(idx == -1) usage(EXIT_SUCCESS, ctx.vrbs, argv[0]);
       input = 0;
       break;
     case -1:
@@ -563,4 +623,5 @@ int main(int argc, char* argv[]) {
   
   exit(EXIT_SUCCESS);
 }
+
 
