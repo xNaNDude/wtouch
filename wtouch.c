@@ -124,11 +124,13 @@ err_t filehandle(void* fpathname, fhandle_p fhdl, bool write, bool wide) {
             CreateFileW( (LPCWSTR) fpathname,
                          GENERIC_READ | (write ? GENERIC_WRITE : 0), 0, NULL,
                          OPEN_EXISTING,
-                         FILE_ATTRIBUTE_NORMAL, NULL ) :
+                         FILE_ATTRIBUTE_NORMAL |
+                           FILE_FLAG_BACKUP_SEMANTICS, NULL ) :
             CreateFile( (LPCSTR) fpathname,
                         GENERIC_READ | (write ? GENERIC_WRITE : 0), 0, NULL,
                         OPEN_EXISTING,
-                        FILE_ATTRIBUTE_NORMAL, NULL );
+                        FILE_ATTRIBUTE_NORMAL |
+                          FILE_FLAG_BACKUP_SEMANTICS, NULL );
   return (*fhdl) == INVALID_HANDLE_VALUE ? GetLastError() : 0;
 }
 
