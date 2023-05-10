@@ -489,7 +489,7 @@ ccstr_t const error[] = {
   "error %u on time\n",
   "error %u on file : \"%s\"\n",
   "usage:\n"
-  "%s [-(s|r|a|c|m)] [-f (<file>|-)] [-t[a|c|m] <time>] [--] [<file> ...]\n\n"
+  "%s [-(s|r|a|c|m|e)] [-f (<file>|-)] [-t[a|c|m] <time>] [--] [<file> ...]\n\n"
   "change modification and access time of file(s) to current system time.\n\n"
   "-s\t\t silent mode.\n"
   "-r\t\t ignore files with readonly attribute\n"
