@@ -227,6 +227,7 @@ typedef struct {
   cstr_t   input; // file(s) list input (for stdin ('-') input value is -1).
   ushrt_t   year; // default year for incomplete(s) time(s).
   bool     ignro; // ignore read only files.
+  bool      evry; // treat file list input as voidtools 'everything' output.
   bool      vrbs; // verbose (output errors).
 } ctx_t;
 
@@ -243,7 +244,7 @@ opidx_e op2idx(opidx_e op) {
 static inline
 ctx_t nilctx(void) {
   return (ctx_t)
-    { 0, 0, { { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 } }, 0, 0, 0, 1 };
+    { 0, 0, { { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 } }, 0, 0, 0, 0, 1 };
 }
 
 static inline
@@ -442,6 +443,10 @@ int popts(int c, cstr_t v[], ctx_p ctx) {
           if(ctx->ignro) return opt_rpt(idx, v, false);
           ctx->ignro = true;
           break;
+        case 'e':
+          if(ctx->evry) return opt_rpt(idx, v, false);
+          ctx->evry = true;
+          break;
         case 'a':
           if(ctx->reqops & ACS) return opt_rpt(idx, v, false);
           ctx->reqops |= ACS;
@@ -503,6 +508,7 @@ ccstr_t const error[] = {
   "-f <file>\t read file(s) arguments from <file> or stdin when '-',\n"
   "  \t\t one file per line, file(s) argument(s) on command line\n"
   "  \t\t are still treated before <file>/stdin input.\n"
+  "-e\t\t treat -f input as voidtools everything output.\n"
   "--\t\t the first non option argument always stop option(s) reading,\n"
   "  \t\t this option force this stop, allowing file(s) named like\n"
   "  \t\t options.\n"
@@ -608,14 +614,28 @@ int main(int argc, char* argv[]) {
   
   if(input) {
     char fpname[UINT16_MAX];
+    cstr_t fstart, fend;
     size_t len;
+    
+    // remove header line
+    if(ctx.evry) fgets(fpname, UINT16_MAX, input);
     
     while(fgets(fpname, UINT16_MAX, input)) {
       len = strlen(fpname);
       if(len > 1) {
         fpname[len-1] = 0; // - newline.
-        if((tmperr = touch(fpname, &ctx)) && ctx.vrbs) {
-          fprintf(stderr, error[FILEOP_ERROR], tmperr, fpname);
+        
+        // treat input as voidtools everything output.
+        if(ctx.evry && (len > 3)) {
+          fstart = fpname + 1;
+          if((fend = strchr(fstart, '"')))
+            *fend = 0;
+          else continue;
+        }
+        else fstart = fpname;
+        
+        if((tmperr = touch(fstart, &ctx)) && ctx.vrbs) {
+          fprintf(stderr, error[FILEOP_ERROR], tmperr, fstart);
           fflush(stderr);
         }
       }
@@ -625,5 +645,4 @@ int main(int argc, char* argv[]) {
   
   exit(EXIT_SUCCESS);
 }
-
 
