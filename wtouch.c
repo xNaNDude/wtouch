@@ -275,11 +275,11 @@ err_t touch(cstr_t f, ctx_p ctx) {
     todo |= ((p[op2idx(MDF)] = &(ctx->tms[op2idx(MDF)])), MDF);
   
   if( (ctx->reqops & CRT) &&
-      !ftcmp(ctx->tms[op2idx(CRT)], att.ftLastWriteTime) )
+      !ftcmp(ctx->tms[op2idx(CRT)], att.ftCreationTime) )
     todo |= ((p[op2idx(CRT)] = &(ctx->tms[op2idx(CRT)])), CRT);
   
   if( (ctx->reqops & ACS) &&
-      !ftcmp(ctx->tms[op2idx(ACS)], att.ftLastWriteTime) )
+      !ftcmp(ctx->tms[op2idx(ACS)], att.ftLastAccessTime) )
     todo |= ((p[op2idx(ACS)] = &(ctx->tms[op2idx(ACS)])), ACS);
   
   if(!todo) return 0;
