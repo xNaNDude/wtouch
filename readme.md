@@ -1,3 +1,4 @@
+```
 note: -t<x> <time> does'nt imply -<x>
 
 usage:
@@ -25,3 +26,5 @@ change modification and access time of file(s) to current system time.
 --		 the first non option argument always stop option(s) reading,
   		 this option force this stop, allowing file(s) named like
   		 options.
+```
+
